@@ -12,9 +12,10 @@ I'm a **motivated master student** majoring in mathematical statistics,and passi
 - **Databases:** MySQL  
 
 ### 🔥 **Project and related experiences**  
-- **[Project 1](link)** | [Tech used] - Short description.  
-- **[Project 2](link)** | [Tech used] - Short description.  
-- **[Project 3](link)** | [Tech used] - Short description.  
+- **[Project 1](link)** | [R] - Short description.  
+- **[Project 2](link)** | [R] - Short description.  
+- **[Project 3](link)** | [Python] - Short description.
+- **[Project 4](link)** | [MySQL] -  
 
 
 
