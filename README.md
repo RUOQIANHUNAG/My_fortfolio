@@ -12,7 +12,7 @@ I'm a **motivated master student** majoring in mathematical statistics,and passi
 - **Databases:** MySQL  
 
 ### 🔥 **Project and related experiences**  
-- **[Project 1](https://github.com/RUOQIANHUNAG/My_fortfolio/blob/main/spatial_econometric_spillover_effect.Rmd)** | [R] - Short description.  
+- **[Project 1](https://github.com/RUOQIANHUNAG/My_fortfolio/blob/main/spatial_econometric_spillover_effect.Rmd)** | [R] - explore the relationship between democracy and economic growth by Spatial effects in panel data models. 
 - **[Project 2](link)** | [R] - Short description.  
 - **[Project 3](link)** | [Python] - Short description.
 - **[Project 4](link)** | [MySQL] -  
