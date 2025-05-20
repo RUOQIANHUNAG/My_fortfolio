@@ -1,0 +1,434 @@
+---
+title: "final paper"
+output: html_document
+date: "2025-01-08" 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+question: whether the democracy have effect on economic growth 
+
+data explanation
+
+GDP per capita (GROWTH), per capita: per person
+
+Inflation (INF), 
+
+Trade (TRADE), 
+
+final Government consumption (GOVTSIZE), 
+
+Population growth (POP), 
+
+Political stability (PST), Values range between -2.5 and +2.5, with -2.5 being the most unstable situation and +2.5 indicating the most stable: measure the quality of governance
+
+
+Deliberative democracy index (DELIBDEM), The democratic deliberative principle
+concerns how decisions are made in society.
+
+
+
+```{r}
+# import dataset
+df <- read.csv('/Users/akane/Documents/applied econometric/final assignment/Panel_democ_stability_growth_MENA_Over_1983_2022.csv')
+head(df)
+library(AER)
+library(plm)
+library(stargazer)
+```
+
+
+
+```{r}
+# the set of observations on all variables for 2012 and 2022
+df_1997To2022 <- subset(df, df$year %in% c(1997:2022))
+describe <- df_1997To2022[,c(5,6,7,8,9,10,12)]
+stargazer(describe, type = "latex")
+
+
+```
+
+
+## The Fixed Effects Regression Mode
+
+Regression using panel data may mitigate omitted variable bias, which could be a feasible choice as the complex impact that have no information on variables may exist when it comes to policy issues. 
+
+
+First, to The simple fixed effects regression model for estimation of the relation between economic growth and the democracy is
+
+$$
+GROWTH_{it} = \beta_1 DEM_{it} + CountryFixedEffects + u_{it}
+$$
+
+a regression of the democracy on economic growth and 15 binary regressors-- one for each MENA country.
+
+
+```{r}
+
+# estimate the fixed effects regression with plm()
+# the ID variable for index is "country" and "year"
+#fixed effects estimator is achieved by setting model = "within"
+gdp_dem_mod2 <- plm(GROWTH ~ delibdem,
+data = df_1997To2022,
+index = c("country", "year"),
+model = "within")
+# partipdem delibdem egaldem
+# print summary usingg robust standard errors
+coeftest(gdp_dem_mod2, vcov. = vcovHC, type = "HC1")
+
+```
+
+The estimated coefficient is -11.4192, which is negative and sufficient.
+
+The interpretation is that the estimated reduction in economic growth due to an increase in democracy by 1% is 11 per capita, which actually shows a conflicting views on the effect of democracy on growth.
+
+For the definition of the model, obtain inference based on robust standard errors is crucial, which means that clustered standard errors is applied for fixed effects models.
+
+
+we plot the data and add the corresponding estimated regression functions. 
+
+
+
+
+## The Fixed Effects Regression Assumptions and Standard Errors for Fixed Effects Regression
+
+There are several major source of omitted variable bias that are not accounted for by all of the models of the relationship between economic growth and democracy measurement.These covariates are defined as follows:
+
+
+Inflation (INF), 
+Trade (TRADE), 
+final Government consumption (GOVTSIZE),
+Population growth (POP) 
+Political stability (PST). 
+
+
+Thus the model with all of the considering covariate is following: 
+
+$$
+\text { GROWTH }_{i t}=\alpha_i + \beta_1 \mathrm{INF}_{\mathrm{it}} +\beta_2 \text { TRADE }_{\mathrm{it}}+\beta_3 \mathrm{GOVTSIZE}_{\mathrm{it}}+\beta_4 \mathrm{POP}_{\mathrm{it}} +\beta_5 \mathrm{PST}_{\mathrm{it}}+ \beta_6 \mathrm{DEM}_{\mathrm{it}} + \varepsilon_{i t}
+$$ 
+where $\alpha_i$ is a separate constant term for each of the i MENA country. 
+
+
+
+
+## Estimate several models and compare them. 
+
+
+
+```{r}
+# estimate all seven models
+gdp_dem_mod1 <- lm(GROWTH ~ delibdem, data = df_1997To2022)
+# summary(gdp_dem_mod1) 
+
+
+# gdp_dem_mod2 <- plm(GROWTH ~ delibdem,
+# data = df_1997To2022,
+# index = c("country", "year"),
+# model = "within")
+
+
+gdp_dem_mod3 <- plm(GROWTH ~ INF + TRADE  + delibdem ,
+data = result,
+index = c("country", "year_group"),
+model = "within"
+)
+coeftest(gdp_dem_mod3, vcov = vcovHC, type = "HC1")
+
+# add variables which is related to government and society 
+gdp_dem_mod4 <- plm(GROWTH ~ GROWTH_lag + INF + POP + delibdem + TRADE + GOVTSIZE  + PST, 
+                   data = result,
+                   index = c("country", "year"),
+                   model = "within"
+)
+summary(gdp_dem_mod4)
+
+# print summary using robust standard errors
+
+# coeftest(gdp_dem_mod4, vcov = vcovHC, type = "HC1") 
+```
+
+
+```{r}
+
+# gather clustered standard errors in a list
+rob_se <- list(sqrt(diag(vcovHC(gdp_dem_mod1, type = "HC1"))),
+               sqrt(diag(vcovHC(gdp_dem_mod2, type = "HC1"))),
+               sqrt(diag(vcovHC(gdp_dem_mod3, type = "HC1"))),
+               sqrt(diag(vcovHC(gdp_dem_mod4, type = "HC1"))))
+# generate the table
+stargazer(gdp_dem_mod1, gdp_dem_mod2, gdp_dem_mod3,
+gdp_dem_mod4, 
+digits = 3,
+header = FALSE,
+type = "latex",
+se = rob_se,
+title = "Linear Panel Regression Models of Democracy Effect on Economic Growth",
+model.numbers = FALSE,
+column.labels = c("(1)", "(2)", "(3)", "(4)"))
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+# Spatial dynamic panel data modeling
+
+```{r}
+library(SDPDmod)
+library(rnaturalearth)
+library(sf)
+```
+
+
+# calculating the mean value for every 5 years.
+
+
+```{r}
+df$year_group <- cut(df$year, 
+                     breaks = seq(floor(min(df$year) / 5) * 5, ceiling(max(df$year) / 5) * 5, by = 5),
+                     include.lowest = TRUE, 
+                     right = FALSE)
+
+library(dplyr)
+
+result <- df %>%
+  group_by(country, year_group) %>%
+  summarise(across(where(is.numeric), mean, na.rm = TRUE), .groups = "drop")
+
+```
+
+
+```{r}
+result <- data.frame(result)
+
+library(Hmisc)
+
+result$GROWTH_lag <- c(NA, result$GROWTH[-nrow(result)])
+result$GROWTH_lag[which(!duplicated(result$country))] <- NA
+result$GROWTH_lag = impute(result$GROWTH_lag,0)
+head(result)
+
+d2 <- plm::pdata.frame(result, index=c('country', 'year_group'))
+d2$llogc<-plm::lag(d2$logc) 
+head(d2)
+```
+
+```{r}
+d2 <- plm::pdata.frame(result, index=c('country', 'year'))
+```
+
+
+```{r}
+mena <- unique(df$country)
+
+# Read in the world countries shapefile
+world <- ne_countries(scale = "medium", returnclass = "sf")
+mena_world <- world[world$name %in% mena, ]
+
+
+mena_world <- mena_world[match(mena, mena_world$name),] # match countries by the order of original data. 
+
+ggplot(mena_world) +
+  geom_sf() +
+  geom_sf_text(data = mena_world, aes(label = name))
+plot(mena_world["name"], main = "MENA Countries")
+```
+
+
+```{r}
+# Spatial Contiguity Weights Matrix
+W_2n_norm <- mOrdNbr(sf_pol = mena_world, m = 2, rn = T) ## second order neighbors
+W_len_sh <- SharedBMat(mena_world,rn = T)
+W_len_sh_norm <- rownor(W_len_sh)
+
+
+```
+
+
+
+
+```{r}
+
+library(splm)
+
+usalw <- spdep::mat2listw(W_len_sh_norm,zero.policy = T)
+
+
+
+sar_model <- spml(GROWTH ~ INF, 
+                  data = result,
+                  index = c("country", "year_group"),
+                  model = "within",
+                  listw = usalw, 
+                  zero.policy = T,
+                  lag=TRUE)
+
+
+a <- summary(sar_model)
+
+library(texreg)
+texreg(a, type = "latex")
+
+stargazer(sar_model, 
+digits = 3,
+header = FALSE,
+type = "text",
+title = " Democracy Effect on Economic Growth",
+model.numbers = FALSE)
+```
+
+
+
+
+
+
+
+
+
+
+```{r}
+# Static spatial lag model with spatial fixed effects (ignore)
+mod1<-SDPDm(formula = GROWTH ~ INF + POP + delibdem + TRADE + GOVTSIZE + PST, data =result, W = W_len_sh_norm,
+            index = c("country","year"), 
+            model = "sar", 
+            effect = "individual")
+
+
+summary(mod1)
+```
+
+```{r}
+# Dynamic spatial model with spatial fixed effects
+mod2<-SDPDm(formula = GROWTH ~ INF + POP + delibdem + TRADE + GOVTSIZE  + PST, data = data.frame(result), W = W_len_sh_norm,
+            index = c("country","year"),
+            model = "sar", 
+            effect = "individual",
+            dynamic = T, 
+            tlaginfo = list(ind = NULL, tl = T, stl = T))
+
+summary(mod2)
+
+
+```
+
+
+```{r}
+# Dynamic spatial Durbin model with time fixed effects
+mod3<-SDPDm(formula = GROWTH ~ INF + POP + delibdem + TRADE + GOVTSIZE  + PST, data = data.frame(result), W = W_len_sh_norm,
+            index = c("country","year"),
+            model = "sdm", 
+            effect = "individual",
+            dynamic = T,
+            tlaginfo = list(ind = NULL, tl = T, stl = T))
+
+
+```
+
+
+```{r}
+# Extract coefficients, standard errors, and p-values
+model_summary <- data.frame(summary(gdp_dem_mod4)$coefficients)
+
+coefficients <- model_summary$Estimate
+std_errors <- model_summary$Std..Error
+p_values <- model_summary$Pr...t..
+#coefficients <- c(model_summary$coefficients,model_summary$rho )  # Coefficients
+#std_errors <- c(model_summary$std, model_summary$rho.se)  # Standard Errors
+#p_values <- c(model_summary$pval,model_summary$rho.pval)  # P-values
+
+# Create a custom function to format p-values with asterisks
+format_p_values <- function(p) {
+  if (p < 0.01) {
+    return("***")
+  } else if (p < 0.05) {
+    return("**")
+  } else if (p < 0.1) {
+    return("*")
+  } else {
+    return("")
+  }
+}
+
+# Format the coefficients, standard errors, and p-values for LaTeX
+formatted_results <- paste0(round(coefficients, 3), sapply(p_values, format_p_values))
+
+
+# Create a data frame for the results
+results_table <- data.frame(
+  Variable = rownames(model_summary),
+  Coefficient = formatted_results
+)
+
+# Render the table to LaTeX 
+latex_table <- xtable(results_table, caption = "Regression Results with Blank Column Name")
+print(latex_table, type = "latex", include.rownames = FALSE)
+
+```
+
+
+
+
+
+```{r}
+# calculating impacts
+imp  <- impactsSDPDm(mod5)
+summary(imp)
+```
+
+```{r}
+
+# Extract direct, indirect, and total impacts
+direct <- imp
+indirect <- imp$INDIRECTst.tab
+total <- imp$TOTALst.tab
+
+# Combine into a data frame
+impact_results <- data.frame(
+  Variable = rownames(direct),
+  Direct = direct[, 1],  # Extract point estimates for direct impacts
+  Indirect = indirect[, 1],  # Extract point estimates for indirect impacts
+  Total = total[, 1]  # Extract point estimates for total impacts
+)
+
+
+
+
+```
+
+
+
+```{r}
+#Dynamic panel model with both spatial and time fixed effects with uniform prior
+res4<-blmpSDPD(formula = GROWTH ~ INF + POP + delibdem + TRADE + GOVTSIZE  + PST, data = data.frame(result), W = W_len_sh_norm, 
+            index = c("country","year"),
+               model = list("ols","sar","sdm"), 
+               effect = "individual",
+               ldet = "mc", ## log-determinant calculated with mcmc procedure
+               dynamic = TRUE,
+               prior = "uniform")
+
+# Static panel model with  log-marginal 
+res2<-blmpSDPD(formula = GROWTH ~ INF + POP + delibdem + TRADE + GOVTSIZE  + PST + GROWTH_lag, data = data.frame(result), W = W_len_sh_norm,
+               index = c("country","year"),
+               model = list("ols","sar","sdm"), 
+               effect = "individual")
+
+print(res2)
+
+
+```
+
+
