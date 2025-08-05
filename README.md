@@ -3,7 +3,6 @@
 ### 🚀 **About Me**  
 I'm a **motivated master student** majoring in mathematical statistics,and passionate about **data analysis**
 - 🔭 **Currently research on:** nonparametric local linear estimation for time varying processes.    
-- 💡 **Interested in:**  Eager to contribute to innovative projects and collaborate with cross-functional teams that use data to make a measurable impact.
 
 
 ### 🛠 **Tech Stack**  
