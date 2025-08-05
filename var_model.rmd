@@ -1,0 +1,311 @@
+```{r setup, include=FALSE}
+
+knitr::opts_knit$set(root.dir="D:/dissertation")
+knitr::opts_chunk$set(
+	message = FALSE,
+	warning = FALSE,
+	fig.showtext = TRUE,
+	fig.align = "center",
+	fig.path = "fig/" 
+)
+```
+
+Data preparation
+
+```{r eval=FALSE, include=FALSE}
+###############################################################################
+# Description: The data for the analyses is loaded from Yahoo finance via the
+# quantmod package. Log returns are computed and the data will be saved in 
+# folder 'Data' as RDS-file.
+
+rm(list = ls())
+graphics.off()
+
+setwd("D:/dissertation")
+
+library(quantmod)
+
+# Yahoo finace symbols for NYSE, DAX, Euro Stoxx 50, S&P 500, Nikkei 225
+ts_name    <- c("EuroStoxx50", "S&P500", "HSI")
+#setSymbolLookup(CSI300=list(name="000300.ss",src="yahoo"))
+yf_symbols <- c("^STOXX50E", "^GSPC", "^HSI")
+
+# Define function to get data for lapply
+get_data <- function(x){
+  raw_series <-  getSymbols(x, source = "yahoo",
+                            auto.assign = FALSE,
+                            from = "2017-01-01", 
+                            to = "2022-06-30")[,6]
+  
+  log_ret    <- na.omit(diff(log(raw_series)))*100  #Compute log returns
+  result     <- na.omit(cbind(log_ret, lag(log_ret)))
+  
+  return(result)
+  
+}
+
+# Combine all data sets in one list
+data_list         <- lapply(yf_symbols, get_data)
+names(data_list)  <- ts_name
+
+# Save data files seperately and as one list
+file_names        <- paste0("Data/", ts_name, ".rds")
+
+#lapply(1:length(ts_name), function(x) saveRDS(data_list[[x]], file_names[x]))
+
+
+saveRDS(data_list, "D:/dissertation/data.rds")
+#saveRDS(data_list[[1]], "S&P500.rds")
+#saveRDS(data_list[[1]], "Nikkei225.rds")
+```
+
+## describe statistics
+
+```{r}
+
+library(DescTools)
+data <- readRDS("D:/dissertation/data.rds")
+Euro = data[[1]]
+mySP500. = data[[2]]
+HSI = data[[3]]
+Desc(Euro[1])
+Desc(SP500[1])
+Desc(HSI[1])
+
+```
+
+```{r}
+library(rugarch)
+library(qrmtools)  # for the data analysis(np_VaR)
+library(zoo)
+library(datawizard) # for skewness
+library(nvmix) # for rNorm(), fitStudent(), rStudent()
+library(xts)
+library(tseries)  
+library(zoo) 
+#library(readxl)
+```
+
+## 1 Fit an ar(1)-Garch(1,1) model
+
+```{r}
+uspec.t = ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1,1)),
+                      mean.model = list(armaOrder = c(1,0), # AR(1) part
+                                        include.mean = TRUE), # with mean
+                      distribution.model = "std") # standardized Student t innovations
+
+e.uspec.t = ugarchspec(variance.model = list(model = "eGARCH", garchOrder = c(1,1)),
+                      mean.model = list(armaOrder = c(1,0), # AR(1) part
+                                        include.mean = TRUE), # with mean
+                      distribution.model = "std") # standardized Student t innovations
+
+t.uspec.t = ugarchspec(variance.model = list(model = "gjrGARCH", garchOrder = c(1,1)),
+                      mean.model = list(armaOrder = c(1,0), # AR(1) part
+                                        include.mean = TRUE), # with mean
+                      distribution.model = "std") # standardized Student t innovations
+
+
+uspec.n = ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1,1)),
+                      mean.model = list(armaOrder = c(1,0), # AR(1) part
+                                        include.mean = TRUE), # with mean
+        ) # standardized Student normal innovations
+
+e.uspec.n = ugarchspec(variance.model = list(model = "eGARCH", garchOrder = c(1,1)),
+                      mean.model = list(armaOrder = c(1,0), # AR(1) part
+                                        include.mean = TRUE), # with mean
+        ) # standardized Student normal innovations
+
+t.uspec.n = ugarchspec(variance.model = list(model = "gjrGARCH", garchOrder = c(1,1)),
+                      mean.model = list(armaOrder = c(1,0), # AR(1) part
+                                        include.mean = TRUE), # with mean
+        ) # standardized Student normal innovations
+```
+
+garch-t,garch-norm,egarch,tgarch for three profits
+
+```{r}
+
+
+fit.n.HSI = ugarchfit(spec = uspec.n, data = HSI[,2])
+e.fit.n.HSI = ugarchfit(spec = e.uspec.n, data = HSI[,2])
+t.fit.n.HSI = ugarchfit(spec = t.uspec.n, data = HSI[,2])
+
+
+fit.t.HSI = ugarchfit(spec = uspec.t, data = HSI[,2])
+e.fit.t.HSI = ugarchfit(spec = e.uspec.t, data = HSI[,2])
+t.fit.t.HSI = ugarchfit(spec = t.uspec.t, data = HSI[,2])
+```
+
+## extract residual from the garch model
+
+```{r}
+
+
+#Z.n.HSI = residuals(fit.n.HSI, standardize = TRUE) # estimated  residuals Z_t
+
+qnorm(0.05,mean=0,sd=1)
+
+```
+
+```{r}
+# residual for garch-std-euro
+alpha = 0.05
+nu.HSI = fit.t.HSI@fit$coef["shape"] # extract (fitted) d.o.f. nu
+z_t_HSI = sqrt((nu.HSI-2)/nu.HSI) * qt(alpha, df = nu.HSI)
+z_t_HSI
+
+# residual for garch-std-euro
+nu.HSI = e.fit.t.HSI@fit$coef["shape"] # extract (fitted) d.o.f. nu
+z_t_HSI = sqrt((nu.HSI-2)/nu.HSI) * qt(alpha, df = nu.HSI)
+z_t_HSI
+
+nu.HSI = t.fit.t.HSI@fit$coef["shape"] # extract (fitted) d.o.f. nu
+z_t_HSI = sqrt((nu.HSI-2)/nu.HSI) * qt(alpha, df = nu.HSI)
+z_t_HSI
+```
+
+## VaR predict for GARCH-NORM
+
+```{r}
+
+roll.n <- ugarchroll(spec = e.uspec.t, data =Euro[,2], n.start = 1000, window.size = 1000, refit.every = 1,
+                       refit.window = "moving", solver = "hybrid", calculate.VaR = TRUE,
+                       VaR.alpha = 0.01)
+
+plot(roll.n,which = 4,VaR.alpha = 0.01,pch = 16)
+
+e.roll.n <- ugarchroll(spec = t.uspec.t, data = Euro[,2], n.start = 1000, window.size = 1000, refit.every = 1,
+                       refit.window = "moving", solver = "hybrid", calculate.VaR = TRUE,
+                       VaR.alpha = c(0.01, 0.025, 0.05))
+plot(e.roll.n,which = 4,VaR.alpha = 0.01,pch = 16)
+
+
+t.roll.n <- ugarchroll(spec = t.uspec.n, data = HSI[,2], n.start = 1000, window.size = 1000, refit.every = 1,
+                       refit.window = "moving", solver = "hybrid", calculate.VaR = TRUE,
+                       VaR.alpha = c(0.01, 0.025, 0.05))
+
+```
+
+## plot
+
+```{r}
+VaR.alpha = 0.05
+
+roll. = c(roll.n,e.roll.n,t.roll.n)
+name = c("roll.n","e.roll.n" ,"t.roll.n")
+
+for(i in c(1:3)){
+  png(file=paste(name[i],"_0.01",'.png',sep=''))
+  plot(roll.[[i]],which = 4,VaR.alpha=VaR.alpha) 
+  dev.off()
+}
+```
+
+##test
+
+```{r}
+report(roll.n, type = "VaR", VaR.alpha = 0.01, conf.level = 0.95)
+
+report(e.roll.n, type = "VaR", VaR.alpha = 0.01, conf.level = 0.95)
+
+report(t.roll.n, type = "VaR", VaR.alpha = 0.01, conf.level = 0.95)
+
+
+```
+
+```{r}
+
+roll.t <- ugarchroll(spec = uspec.t, data = Euro[,2], n.start = 1000, window.size = 1000, refit.every = 1,
+                       refit.window = "moving", solver = "hybrid", calculate.VaR = TRUE,
+                       VaR.alpha = c(0.01, 0.025, 0.05))
+#plot(roll.t,which = 4,VaR.alpha = 0.01)
+
+
+e.roll.t <- ugarchroll(spec = e.uspec.t, data = Euro[,2], n.start = 1000, window.size = 1000, refit.every = 1,
+                       refit.window = "moving", solver = "hybrid", calculate.VaR = TRUE,
+                       VaR.alpha = c(0.01, 0.025, 0.05))
+plot(e.roll.t,which = 4,VaR.alpha = 0.01)
+
+
+t.roll.t <- ugarchroll(spec = t.uspec.t, data =  Euro[,2], n.start = 1000, window.size = 1000, refit.every = 1,
+                       refit.window = "moving", solver = "hybrid", calculate.VaR = TRUE,
+                       VaR.alpha = c(0.01, 0.025, 0.05))
+plot(t.roll.t,which = 4,VaR.alpha = 0.01)
+```
+
+```{r}
+VaR.alpha = 0.05
+report(roll.t, type = "VaR", VaR.alpha = VaR.alpha, conf.level = 0.95)
+
+report(e.roll.t, type = "VaR", VaR.alpha = VaR.alpha, conf.level = 0.95)
+
+report(t.roll.t, type = "VaR", VaR.alpha = VaR.alpha, conf.level = 0.95)
+
+```
+
+```{r}
+VaR.alpha = 0.01
+
+roll. = c(roll.t,e.roll.t,t.roll.t)
+name = c("roll.t","e.roll.t" ,"t.roll.t")
+
+for(i in c(1:3)){
+  png(file=paste(name[i],"0.01",'.png',sep=''))
+  plot(roll.[[i]],which = 4,VaR.alpha=VaR.alpha) 
+  dev.off()
+}
+```
+
+```{r}
+## Note: VaRTest() is written for the lower tail (not sign-adjusted losses)
+##       (hence the complicated call here, requiring to refit the process to -X)
+
+btest_1 = VaRTest(1-alpha, actual = -Euro[[1]],
+                 VaR = quantile(fit.N, probs = 1-alpha))
+btest_2 = VaRTest(1-alpha, actual = -Euro[[1]], VaR.)
+
+```
+
+```{r}
+btest_1
+btest_2
+```
+
+```{r}
+qnorm(0.025,mean=0,sd=1)
+VaR_np(Z, alpha)
+```
+
+## predict
+
+## plot VaR
+
+```{r}
+
+############################# Qz_alpha[1]有问题，应该为前T个不是整个长度
+VaR.predict <- -as.numeric(mu.predict + sig.predict * KDE.Euro)
+
+Emu. = fitted(fit.t.Euro) # fitted hat{mu}_t (= hat{X}_t)
+sig. = sigma(fit.t.Euro) # estimated volatility # fitted hat{sigma}_t
+VaR. = -as.numeric(Emu. + sig.*KDE.Euro) 
+VaR.fin = c(VaR.[1:1000],VaR.predict)
+actual = froll.t@forecast[["density"]][["Realized"]]
+btest_2 = VaRTest(1-alpha, actual = actual, VaR.predict, conf.level = 0.95)
+btest_2
+
+Euro_xts <-  Data[[1]][,1] #actual value
+
+date <- index(Euro_xts)
+org    <- as.numeric(Euro_xts)
+errors <- data.frame(Index = date, Real = org)
+out    <- errors$Real < VaR.fin
+
+ylim_max <- max(abs(c(org, VaR.fin)))
+ylim_min <- -ylim_max
+  
+plot(Euro_xts, type = "p", ylim = c(ylim_min-1, ylim_max+1))
+points(xts(errors$Real[out],order.by = errors$Index[out]), col = "red", pch = 16)
+#points(errors$Index[out], errors$Real[out], col = "blue", pch = 16)
+points(Euro_xts, col = "grey",pch =18)
+lines(xts(VaR.fin, order.by = index(Euro_xts)), col = "black", lwd = 2)
+```

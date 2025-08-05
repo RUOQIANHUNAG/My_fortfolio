@@ -1,0 +1,204 @@
+---
+title: "Untitled"
+output: html_document
+date: '2024-05-07'
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_knit$set(root.dir="D:/dissertation")
+knitr::opts_chunk$set(
+	message = FALSE,
+	warning = FALSE,
+	fig.showtext = TRUE,
+	fig.align = "center",
+	fig.path = "fig/" 
+)
+```
+
+
+
+## QMLE:
+
+goal: extract residuals of QMLE model
+
+```{r}
+data <- readRDS("D:/dissertation/data.rds")
+SP500 = data[[2]]
+HSI = data[[3]]
+Euro = data[[1]]
+library(garchx)
+library(rugarch)
+
+#this lags, since x is an xts object
+xlagged[1] <- 0 #replace NA-value with 0 
+mymod <- garchx(HSI$HSI.Adjusted.1) 
+print(mymod)
+z.star = residuals(mymod) #standardized residuals
+
+alpha <- 0.95
+
+VaR. <- quantile(mymod,probs=1-alpha) #the fitted quantiles, i.e. the conditional standard deviation $\times$ the empirical quantile of the standardised innovations
+
+fitted(mymod)
+
+# equals to z.star.q =  -quantile(-z.star, 0.99,type=7) used for VaR.
+sigma <- sqrt(fitted(mymod))
+z.star.q =  quantile(z.star, 0.05,type=7)
+VaR.predict. = as.numeric(sigma * z.star.q) # VaR_alpha computed manually
+
+##stopifnot(all.equal(VaR.predict., as.numeric(VaR.)))
+VaRTest(1-alpha, actual = as.numeric(HSI$HSI.Adjusted[-1]), as.numeric(VaR.predict.))
+```
+
+
+## kernel density for z_t
+
+```{r}
+# Kernel density quantile estimate for observation x
+kde_uni <- function(x, data, kernel){
+  
+  hT  <- bw.nrd0(data)  #bw.nrd0 implements a rule-of-thumb
+  
+  if(kernel == "gaussian") p <- mean(pnorm((x-data)/hT))
+  
+  return(p)
+  
+}
+
+# Vectorized version of kde_uni
+kde <- Vectorize(kde_uni, vectorize.args = "x")
+
+
+
+# Estimate KDE based quantile
+QKDE <- function(p, Interval, data, kernel){
+
+    tempf <- function(t) kde(t, data, kernel)-p
+    
+    return(uniroot(tempf,Interval)$root)
+    
+}
+```
+
+
+```{r}
+
+
+mymod <- garchx(Euro$STOXX50E.Adjusted.1)
+z.star = residuals(mymod)
+
+
+alpha = 0.99
+z.star.q =  quantile(z.star,1-alpha,type=7) #-2.95
+#z.star.q
+#VaR. <- quantile(mymod,probs=1-alpha) #the fitted quantiles, i.e. the conditional standard deviation $\times$ the empirical quantile of the standardised innovations
+# equals to z.star.q =  -quantile(-z.star, 0.99,type=7) used for VaR.
+#HS method
+
+Z.star. = as.numeric(z.star)
+KDE.Euro <- -QKDE(alpha, c(0, max(-Z.star.)*1.5), data = -Z.star.,kernel = "gaussian")
+#KDE.Euro
+```
+
+# rolling predict for garch-VaR
+
+```{r}
+#rm(list = ls())
+#graphics.off()
+
+my_series_sigma <- function(i) {
+  data_temp <-Euro$STOXX50E.Adjusted.1[(i):(999+i)]
+  mymod <- garchx(data_temp)
+  pred = predict(mymod, n.ahead = 1) 
+  fit_temp <- as.numeric(pred) 
+  temp_data <- data.frame(t(fit_temp))
+  colnames(temp_data) <- c("sigma2")
+  return(temp_data)
+}
+
+
+######################################
+library(doParallel)
+
+
+cl <- makeCluster(detectCores())
+registerDoParallel(cl) 
+result_parallel <- foreach(x=c(1:(1377-1000+1))) %do% my_series_sigma(x)
+stopCluster(cl)
+
+# extract the sigma
+pre.sigma2 = c()
+for (i in c(1:(1376-1000+1))) {
+  pre.sigma2[i] = as.numeric(result_parallel[[i]])
+}
+pre.sigma. =  sqrt(pre.sigma2)
+
+```
+
+```{r}
+alpha = 0.99
+
+z.star.q =  quantile(z.star,1-alpha,type=7) #-2.95
+KDE.Euro <- -QKDE(alpha, c(0, max(-Z.star.)*1.5), data = -Z.star.,kernel = "gaussian")
+
+
+pre.VaR = pre.sigma. * z.star.q
+actual = HSI$HSI.Adjusted[1001:1349]
+vtest_HS = VaRTest(1-alpha, actual = actual, pre.VaR)
+#vtest_HS
+vtest_HS$actual.exceed
+vtest_HS$uc.LRp
+vtest_HS$cc.LRp
+#KDE method
+pre.VaR2 = pre.sigma. * KDE.Euro
+vtest_KDE = VaRTest(1-alpha, actual = actual, pre.VaR2)
+vtest_KDE$actual.exceed
+vtest_KDE$uc.LRp
+vtest_KDE$cc.LRp
+
+#nonpara_test = data.frame(
+#  vio = c(vtest_HS$actual.exceed,vtest_KDE$actual.exceed),
+#  test.uc = c (vtest_HS$uc.LRp,vtest_KDE$uc.LRp),
+#  test.cc = c (vtest_HS$cc.LRp,vtest_KDE$cc.LRp))
+#nonpara_test
+
+
+
+
+#colnames(nonpara_test) = c("HS","KDE")
+#nonpara_test
+```
+
+
+
+
+
+## plot VaR 
+
+```{r}
+library(xts)
+```
+
+
+```{r}
+Euro_xts <-  Euro$STOXX50E.Adjusted.1[1001:1377] #actual value
+pre.VaR = pre.sigma. * z.star.q
+pre.VaR2 = pre.sigma. * KDE.Euro
+pre.VaR.fin <- pre.VaR
+actual = Euro$STOXX50E.Adjusted[1001:1377]
+
+date <- index(Euro_xts)
+org    <- as.numeric(actual)
+errors <- data.frame(Index = date, Real = org)
+out    <- errors$Real < pre.VaR.fin
+
+ylim_max <- max(abs(c(org, pre.VaR.fin)))
+ylim_min <- -ylim_max
+  
+plot(Euro_xts, type = "p", ylim = c(ylim_min, ylim_max))
+points(xts(errors$Real[out],order.by = errors$Index[out]), col = "red", pch = 16)
+#points(errors$Index[out], errors$Real[out], col = "blue", pch = 16)
+lines(xts(pre.VaR.fin, order.by = index(Euro_xts)), col = "black", lwd = 2)
+
+```
