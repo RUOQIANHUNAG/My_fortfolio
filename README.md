@@ -13,7 +13,8 @@ I'm a **motivated master student** majoring in mathematical statistics,and passi
 
 ### 🔥 **Project and related experiences**  
 - **[Project 1](https://github.com/RUOQIANHUNAG/My_fortfolio/blob/main/spatial_econometric_spillover_effect.Rmd)** | [R] - explore the relationship between democracy and economic growth by Spatial effects in panel data models. 
-- **[Project 2](link)** | [R] - use the a dynamic, non-parametric GARCH-KDE-VaR model to estimate the risk of different assets. 
+- **[Project 2](https://github.com/RUOQIANHUNAG/My_fortfolio/blob/main/var_model.rmd)(https://github.com/RUOQIANHUNAG/My_fortfolio/blob/main/VaR_test.rmd)** | [R] - use the a dynamic, non-parametric GARCH-KDE-VaR model to estimate the risk of different assets.
+- 
 
 
 
